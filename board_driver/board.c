@@ -76,14 +76,14 @@ dialog_seq_t _dialog_bt_init_seq[] = {
 	{ 0, LEN(0), (uint8_t *)"DUMMY", LEN(5), TO(1), eENTER_CMD1, eENTER_CMD1, DIALOG_NO_BUFFER },  // eENTER_CMD0: Enter command mode
 	{ (uint8_t *)"$$$", LEN(3), (uint8_t *)"CMD\x0D\x0A",LEN(5), TO(10), eAUTHENTICATION, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eENTER_CMD1
 	{ (uint8_t *)"SA,1\x0D", LEN(5), (uint8_t *)"AOK\x0D\x0A",LEN(5), TO(10), eNAME, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eAUTHENTICATION: Set to mode 1
-	{ (uint8_t *)"S-,VIB-Car\x0D", LEN(11), (uint8_t *)"AOK\x0D\x0A",LEN(5), TO(10), eREBOOT1, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eNAME: Set device name
+	{ (uint8_t *)"S-,VIA-Car\x0D", LEN(11), (uint8_t *)"AOK\x0D\x0A",LEN(5), TO(10), eREBOOT1, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eNAME: Set device name
 	{ (uint8_t *)"R,1\x0D", LEN(4), (uint8_t *)"Reboot!\x0D\x0A",LEN(9), TO(10), eREBOOT2, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eREBOOT1: Send R,1
 	{ 0, LEN(0), (uint8_t *)"DUMMY",LEN(5), TO(10), DIALOG_OK_STOP, DIALOG_OK_STOP, DIALOG_NO_BUFFER },  // eREBOOT2: Just a pause to wait for Reboot
 };
 
 static uint8_t _bt_dialog_active = 0;
 // Pointer to Application BT call back functions
-static void (*_app_bt_status_call_back)(uint8_t result) = 0;
+static void (*_app_bt_status_call_back)(uint8_t result) = NULL;
 static QueueHandle_t _xRxedCharsQ = NULL;
 
 // Semaphore to be given when the goal line is passed.
@@ -137,8 +137,11 @@ void init_main_board() {
 	#elif ((MOTOR_CONTROL_PRESCALER == 1024))
 	MOTOR_CONTROL_TCCRB_reg |= _BV(MOTOR_CONTROL_CS0_bit) | _BV(MOTOR_CONTROL_CS2_bit); ;    // Prescaler 1024 and Start Timer
 	#endif
-	
 	set_motor_speed(0);
+	
+	// TACHO Counter
+	// External Clock source - Falling Edge
+	TACHO_TCCRB_reg |= _BV(TACHO_CS2_bit) | _BV(TACHO_CS1_bit);
 	
 	// Bluetooth
 	*(&BT_RTS_PORT - 1) &= ~_BV(BT_RTS_PIN); // set pin to input
@@ -230,62 +233,110 @@ void set_brake(uint8_t brake_percent) {
 
 // ----------------------------------------------------------------------------------------------------------------------
 float get_x_accel() {
-	return ((float)_x_acc)/ACC_2G_DIVIDER;
+	uint8_t _sreg = SREG;
+	cli();
+	float _tmp = ((float)_x_acc)/ACC_2G_DIVIDER;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 float get_y_accel() {
-	return ((float)_y_acc)/ACC_2G_DIVIDER;
+	uint8_t _sreg = SREG;
+	cli();
+	float _tmp = ((float)_y_acc)/ACC_2G_DIVIDER;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 float get_z_accel() {
-	return ((float)_z_acc)/ACC_2G_DIVIDER;
+	uint8_t _sreg = SREG;
+	cli();
+	float _tmp = ((float)_z_acc)/ACC_2G_DIVIDER;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 int16_t get_raw_x_accel() {
-	return _x_acc;
+	uint8_t _sreg = SREG;
+	cli();
+	int16_t _tmp = _x_acc;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 int16_t get_raw_y_accel() {
-	return _y_acc;
+	uint8_t _sreg = SREG;
+	cli();
+	int16_t _tmp = _y_acc;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 int16_t get_raw_z_accel() {
-	return _z_acc;
+	uint8_t _sreg = SREG;
+	cli();
+	int16_t _tmp = _z_acc;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 float get_x_rotation() {
-	return ((float)_x_gyro)/GYRO_500_DPS_DIVIDER;
+	uint8_t _sreg = SREG;
+	cli();
+	float _tmp = ((float)_x_gyro)/GYRO_500_DPS_DIVIDER;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 float get_y_rotation() {
-	return ((float)_y_gyro)/GYRO_500_DPS_DIVIDER;
+	uint8_t _sreg = SREG;
+	cli();
+	float _tmp = ((float)_y_gyro)/GYRO_500_DPS_DIVIDER;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 float get_z_rotation() {
-	return ((float)_z_gyro)/GYRO_500_DPS_DIVIDER;
+	uint8_t _sreg = SREG;
+	cli();
+	float _tmp = ((float)_z_gyro)/GYRO_500_DPS_DIVIDER;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 int16_t get_raw_x_rotation() {
-	return _x_gyro;
+	uint8_t _sreg = SREG;
+	cli();
+	int16_t _tmp = _x_gyro;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 int16_t get_raw_y_rotation() {
-	return _y_gyro;
+	uint8_t _sreg = SREG;
+	cli();
+	int16_t _tmp = _y_gyro;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
 int16_t get_raw_z_rotation() {
-	return _z_gyro;
+	uint8_t _sreg = SREG;
+	cli();
+	int16_t _tmp = _z_gyro;
+	SREG = _sreg;
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
@@ -368,6 +419,8 @@ static void _mpu9250_call_back(spi_p spi_instance, uint8_t spi_last_received_byt
 		case _mpu9520_read_acc:
 		{
 			if (buffer_no_of_items(&_mpu9520_rx_buffer) == 7) {
+				uint8_t _sreg = SREG;
+				cli();
 				buffer_get_item(&_mpu9520_rx_buffer, &lsb); // Throw away the command response
 				buffer_get_item(&_mpu9520_rx_buffer, &msb);
 				buffer_get_item(&_mpu9520_rx_buffer, &lsb);
@@ -377,6 +430,7 @@ static void _mpu9250_call_back(spi_p spi_instance, uint8_t spi_last_received_byt
 				_y_acc = (msb << 8) | lsb;
 				buffer_get_item(&_mpu9520_rx_buffer, &msb);
 				buffer_get_item(&_mpu9520_rx_buffer, &lsb);
+				SREG = _sreg;
 				_z_acc = (msb << 8) | lsb;
 				
 				state = _mpu9520_read_gyro;
@@ -388,6 +442,8 @@ static void _mpu9250_call_back(spi_p spi_instance, uint8_t spi_last_received_byt
 		case _mpu9520_read_gyro:
 		{
 			if (buffer_no_of_items(&_mpu9520_rx_buffer) == 7) {
+				uint8_t _sreg = SREG;
+				cli();
 				buffer_get_item(&_mpu9520_rx_buffer, &lsb); // Throw away the command response
 				buffer_get_item(&_mpu9520_rx_buffer, &msb);
 				buffer_get_item(&_mpu9520_rx_buffer, &lsb);
@@ -397,6 +453,7 @@ static void _mpu9250_call_back(spi_p spi_instance, uint8_t spi_last_received_byt
 				_y_gyro = (msb << 8) | lsb;
 				buffer_get_item(&_mpu9520_rx_buffer, &msb);
 				buffer_get_item(&_mpu9520_rx_buffer, &lsb);
+				SREG = _sreg;
 				_z_gyro = (msb << 8) | lsb;
 
 				state = _mpu9520_read_acc;
@@ -412,7 +469,19 @@ static void _mpu9250_call_back(spi_p spi_instance, uint8_t spi_last_received_byt
 
 // ----------------------------------------------------------------------------------------------------------------------
 uint16_t get_tacho_count() {
-	return 0;
+	static uint16_t _last_reading = 0;
+	
+	uint16_t _tmp = TACHO_TCNT_reg;
+	uint16_t _tmp_last = _tmp;
+	
+	if (_tmp < _last_reading) {
+		_tmp = (UINT16_MAX - _last_reading + _tmp);
+		} else {
+		_tmp = _tmp-_last_reading;
+	}
+	_last_reading = _tmp_last;
+	
+	return _tmp;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
@@ -430,8 +499,8 @@ static void _send_bytes_to_bt(uint8_t *bytes, uint8_t len) {
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
-void bt_send_bytes(uint8_t *bytes, uint8_t len) {
-	serial_send_bytes(_bt_serial_instance, bytes, len);
+uint8_t bt_send_bytes(uint8_t *bytes, uint8_t len) {
+	return serial_send_bytes(_bt_serial_instance, bytes, len);
 }
 
 // ----------------------------------------------------------------------------------------------------------------------
