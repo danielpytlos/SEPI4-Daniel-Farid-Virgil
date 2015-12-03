@@ -120,12 +120,7 @@ void bt_com_call_back(uint8_t byte) {
 				break;
 			}
 			
-			case 'g': {
-				uint16_t raw_xr = get_raw_x_rotation();
-				sprintf(buf, "raw-x:%4d", raw_xr);
-				bt_send_bytes((uint8_t *)buf, strlen(buf));
-				break;
-			}
+			
 			default:;
 		}
 	}
