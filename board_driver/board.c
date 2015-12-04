@@ -76,7 +76,7 @@ dialog_seq_t _dialog_bt_init_seq[] = {
 	{ 0, LEN(0), (uint8_t *)"DUMMY", LEN(5), TO(1), eENTER_CMD1, eENTER_CMD1, DIALOG_NO_BUFFER },  // eENTER_CMD0: Enter command mode
 	{ (uint8_t *)"$$$", LEN(3), (uint8_t *)"CMD\x0D\x0A",LEN(5), TO(10), eAUTHENTICATION, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eENTER_CMD1
 	{ (uint8_t *)"SA,1\x0D", LEN(5), (uint8_t *)"AOK\x0D\x0A",LEN(5), TO(10), eNAME, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eAUTHENTICATION: Set to mode 1
-	{ (uint8_t *)"S-,VIA-Car\x0D", LEN(11), (uint8_t *)"AOK\x0D\x0A",LEN(5), TO(10), eREBOOT1, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eNAME: Set device name
+	{ (uint8_t *)"S-,VIB-Car\x0D", LEN(11), (uint8_t *)"AOK\x0D\x0A",LEN(5), TO(10), eREBOOT1, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eNAME: Set device name
 	{ (uint8_t *)"R,1\x0D", LEN(4), (uint8_t *)"Reboot!\x0D\x0A",LEN(9), TO(10), eREBOOT2, DIALOG_ERROR_STOP, DIALOG_NO_BUFFER },  // eREBOOT1: Send R,1
 	{ 0, LEN(0), (uint8_t *)"DUMMY",LEN(5), TO(10), DIALOG_OK_STOP, DIALOG_OK_STOP, DIALOG_NO_BUFFER },  // eREBOOT2: Just a pause to wait for Reboot
 };

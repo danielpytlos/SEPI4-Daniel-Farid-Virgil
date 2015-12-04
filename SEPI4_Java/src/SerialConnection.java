@@ -16,7 +16,7 @@ import java.io.IOException;
 public class SerialConnection {
 
     private SerialPort serialPort;
-    private int readBufferSize = 40;
+    private int readBufferSize = 64;
     private static int TIMEOUT = 100;
 
     //Check settings (on Windows) in Device Manager -> Properties -> Port Settings if you have any issues.

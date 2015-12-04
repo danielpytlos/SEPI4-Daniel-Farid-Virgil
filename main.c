@@ -28,8 +28,11 @@ static SemaphoreHandle_t  goal_line_semaphore = NULL;
 static QueueHandle_t _xBT_received_chars_queue = NULL;
 
 
-
+uint16_t prog[200]= {20, 65, 120, 55, 220, 75, 300, 60, 400, -30, 520, 65, 620, 55, 720, 50, 820, 70, 920, 0};
+uint8_t nextVal=0;
 uint8_t bt_initialised = 0;
+uint8_t charCount=0;
+char sendValue[2] = {};
 
 void bt_status_call_back(uint8_t status) {
 	if (status == DIALOG_OK_STOP) {
@@ -84,7 +87,6 @@ void bt_com_call_back(uint8_t byte) {
 				break;
 			}
 			
-			
 			case 'e': {
 				set_brake(0);
 				break;
@@ -103,10 +105,7 @@ void bt_com_call_back(uint8_t byte) {
 				uint16_t raw_ry = get_raw_y_rotation();
 				uint16_t tacho = get_tacho_count();
 				sprintf(buf, "x%4dy%4dz%4dr%4dq%4dt%4d", raw_x, raw_y, raw_z, raw_rx, raw_ry, tacho);
-
-				//sprintf(buf2, "r%4d q%4d",raw_rx, raw_ry);
 				bt_send_bytes((uint8_t *)buf, strlen(buf));
-				//bt_send_bytes((uint8_t *)buf2, strlen(buf));
 				break;
 			}
 			
@@ -123,9 +122,32 @@ void bt_com_call_back(uint8_t byte) {
 				bt_send_bytes((uint8_t *)buf, strlen(buf));
 				break;
 			}
+			case 'N': {
+				sprintf(buf, "n%4d", nextVal);
+				bt_send_bytes((uint8_t *)buf, strlen(buf));
+				break;
+			}
 			
+			case 'P': {
+				plannedTrack();
+				break;
+			}
 			
-			default:;
+			default:
+				sendValue[charCount] = byte - '0';
+				charCount++;
+				set_motor_speed(0);
+				if(byte == 33) {
+					//sendValue[charCount] = '\0';
+					int tempInt;
+					//sscanf(sendValue, "%d", &tempInt);
+					tempInt = atoi(sendValue);
+					prog[nextVal] = tempInt;
+					nextVal++;
+					charCount=0;
+					tempInt = sendValue[1];
+				}
+				break;
 		}
 	}
 }
@@ -133,6 +155,7 @@ void bt_com_call_back(uint8_t byte) {
 void learn() {
 	int i;
 	char buf[20];
+	
 	for (i= 0; i<100; i++)
 	{
 			uint16_t raw_x = get_raw_x_accel();
@@ -145,6 +168,32 @@ void learn() {
 			vTaskDelay( 100/ portTICK_PERIOD_MS);
 	}
 }
+
+void plannedTrack() {
+	uint16_t count = 0;
+	//uint16_t prog[200]= {20, 65, 120, 55, 220, 75, 300, 60, 400, -30, 520, 65, 620, 55, 720, 50, 820, 70, 920, 0};
+	uint16_t tacho = get_tacho_count();
+	set_motor_speed(60);
+	while (tacho < 1000)
+	{
+		if (tacho >= prog[count])
+		{
+			if (prog[count+1] > 0)
+			{
+				set_motor_speed(prog[count+1]);
+			} else {
+				set_brake(abs(prog[count+1]));
+			}
+			nextVal= prog[count+1];
+			count = count + 2;
+		}
+		tacho = tacho + get_tacho_count();
+	}
+	set_motor_speed(0);
+	set_motor_speed(0);
+	count +1;
+}
+
 
 static void vjustATask( void *pvParameters ) {
 	/* The parameters are not used. */
