@@ -50,13 +50,13 @@ public class SerialConnection {
     public byte[] read() {
 
         byte[] readBuffer = new byte[readBufferSize];
-        try {
+        /*try {
             int numberOfBytes = serialPort.getInputStream().read(readBuffer);
-            //System.out.println("read number of bytes: " + numberOfBytes);
+            System.out.println("read number of bytes: " + numberOfBytes);
         } catch (IOException e) {
             System.err.println("Failed getting or reading input stream from " + serialPort.getName());
             e.printStackTrace();
-        }
+        }*/
         return readBuffer;
     }
 
