@@ -40,7 +40,7 @@ void bt_status_call_back(uint8_t status) {
 }
 
 void bt_com_call_back(uint8_t byte) {
-	char buf[20];
+	char buf[40];
 	
 	if (bt_initialised) {
 		switch (byte) {
@@ -64,15 +64,15 @@ void bt_com_call_back(uint8_t byte) {
 				break;
 			}
 			
-			//case 'c': {
-				//set_horn(0);
-				//break;
-			//}
-			//
-			//case 'C': {
-				//set_horn(1);
-				//break;
-			//}
+			case 'c': {
+				set_horn(0);
+				break;
+			}
+			
+			case 'C': {
+				set_horn(1);
+				break;
+			}
 			
 			case 'd': {
 				set_motor_speed(0);
@@ -80,7 +80,7 @@ void bt_com_call_back(uint8_t byte) {
 			}
 			
 			case 'D': {
-				set_motor_speed(75);
+				set_motor_speed(65);
 				break;
 			}
 			
@@ -99,8 +99,14 @@ void bt_com_call_back(uint8_t byte) {
 				uint16_t raw_x = get_raw_x_accel();
 				uint16_t raw_y = get_raw_y_accel();
 				uint16_t raw_z = get_raw_z_accel();
-				sprintf(buf, "%4d %4d %4d", raw_x, raw_y, raw_z);
+				uint16_t raw_rx = get_raw_x_rotation();
+				uint16_t raw_ry = get_raw_y_rotation();
+				uint16_t tacho = get_tacho_count();
+				sprintf(buf, "x%4dy%4dz%4dr%4dq%4dt%4d", raw_x, raw_y, raw_z, raw_rx, raw_ry, tacho);
+
+				//sprintf(buf2, "r%4d q%4d",raw_rx, raw_ry);
 				bt_send_bytes((uint8_t *)buf, strlen(buf));
+				//bt_send_bytes((uint8_t *)buf2, strlen(buf));
 				break;
 			}
 			
@@ -110,10 +116,10 @@ void bt_com_call_back(uint8_t byte) {
 			}
 			
 			case 'G': {
-				uint16_t raw_x = get_raw_x_accel();
-				uint16_t raw_y = get_raw_y_accel();
-				uint16_t raw_z = get_raw_z_accel();
-				sprintf(buf, "%4d %4d %4d", raw_x, raw_y, raw_z);
+				uint16_t raw_x = get_raw_x_rotation();
+				uint16_t raw_y = get_raw_y_rotation();
+				uint16_t raw_xa = get_raw_x_accel();
+				sprintf(buf, "x%4d y%4d x%4d", raw_x, raw_y, raw_xa);
 				bt_send_bytes((uint8_t *)buf, strlen(buf));
 				break;
 			}
@@ -134,7 +140,7 @@ void learn() {
 			uint16_t raw_z = get_raw_z_accel();
 			//uint16_t raw_rx = get_raw_x_rotation();
 			//uint16_t raw_ry = get_raw_y_rotation();
-			sprintf(buf, "%4d %4d %4d %4d %4d", raw_x, raw_y, raw_z);
+			sprintf(buf, "%4d %4d %4d", raw_x, raw_y, raw_z);
 			bt_send_bytes((uint8_t *)buf, strlen(buf));
 			vTaskDelay( 100/ portTICK_PERIOD_MS);
 	}
