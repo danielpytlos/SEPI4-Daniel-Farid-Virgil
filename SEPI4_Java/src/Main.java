@@ -36,7 +36,7 @@ public class Main {
 			serialConnection.read();
 			// out.write(new String(serialConnection.read()) + "\n");
 			// serialConnection.write("f".getBytes());
-			for (int i = 0; i < 100; i++) {
+			for (int i = 0; i < 80; i++) {
 				try {
 					Thread.sleep(100);
 				} catch (Exception e) {
