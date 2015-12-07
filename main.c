@@ -28,11 +28,12 @@ static SemaphoreHandle_t  goal_line_semaphore = NULL;
 static QueueHandle_t _xBT_received_chars_queue = NULL;
 
 
-uint16_t prog[200]= {20, 65, 120, 55, 220, 75, 300, 60, 400, -30, 520, 65, 620, 55, 720, 50, 820, 70, 920, 0};
+uint16_t accData[200]= {20, 65, 120, 55, 220, 75, 300, 60, 400, -30, 520, 65, 620, 55, 720, 50, 820, 70, 920, 0};
 uint8_t nextVal=0;
 uint8_t bt_initialised = 0;
 uint8_t charCount=0;
-char sendValue[2] = {};
+char sendValue[5] = {};
+int tick;
 
 void bt_status_call_back(uint8_t status) {
 	if (status == DIALOG_OK_STOP) {
@@ -100,11 +101,12 @@ void bt_com_call_back(uint8_t byte) {
 			case 'F': {
 				uint16_t raw_x = get_raw_x_accel();
 				uint16_t raw_y = get_raw_y_accel();
-				uint16_t raw_z = get_raw_z_accel();
+				tick = xTaskGetTickCount();
+				//uint16_t raw_z = get_raw_z_accel();
 				uint16_t raw_rx = get_raw_x_rotation();
 				uint16_t raw_ry = get_raw_y_rotation();
 				uint16_t tacho = get_tacho_count();
-				sprintf(buf, "x%4dy%4dz%4dr%4dq%4dt%4d", raw_x, raw_y, raw_z, raw_rx, raw_ry, tacho);
+				sprintf(buf, "x%4dy%4dz%4dr%4dq%4dt%4d", raw_x, raw_y, tick, raw_rx, raw_ry, tacho);
 				bt_send_bytes((uint8_t *)buf, strlen(buf));
 				break;
 			}
@@ -123,7 +125,8 @@ void bt_com_call_back(uint8_t byte) {
 				break;
 			}
 			case 'N': {
-				sprintf(buf, "n%4d", nextVal);
+				tick = xTaskGetTickCount();
+				sprintf(buf, "%d", tick);
 				bt_send_bytes((uint8_t *)buf, strlen(buf));
 				break;
 			}
@@ -134,18 +137,12 @@ void bt_com_call_back(uint8_t byte) {
 			}
 			
 			default:
-				sendValue[charCount] = byte - '0';
+				sendValue[charCount] = byte;
 				charCount++;
-				set_motor_speed(0);
 				if(byte == 33) {
-					//sendValue[charCount] = '\0';
-					int tempInt;
-					//sscanf(sendValue, "%d", &tempInt);
-					tempInt = atoi(sendValue);
-					prog[nextVal] = tempInt;
+					accData[nextVal] = atoi(sendValue);
 					nextVal++;
 					charCount=0;
-					tempInt = sendValue[1];
 				}
 				break;
 		}
@@ -176,15 +173,15 @@ void plannedTrack() {
 	set_motor_speed(60);
 	while (tacho < 1000)
 	{
-		if (tacho >= prog[count])
+		if (tacho >= accData[count])
 		{
-			if (prog[count+1] > 0)
+			if (accData[count+1] > 0)
 			{
-				set_motor_speed(prog[count+1]);
+				set_motor_speed(accData[count+1]);
 			} else {
-				set_brake(abs(prog[count+1]));
+				set_brake(abs(accData[count+1]));
 			}
-			nextVal= prog[count+1];
+			nextVal= accData[count+1];
 			count = count + 2;
 		}
 		tacho = tacho + get_tacho_count();
@@ -230,7 +227,6 @@ static void vstartupTask( void *pvParameters ) {
 	
 	xTaskCreate( vjustATask, "JustATask", configMINIMAL_STACK_SIZE, NULL, just_a_task_TASK_PRIORITY, NULL );
 	uint8_t _byte;
-	
 	for( ;; ) {
 		xQueueReceive( _xBT_received_chars_queue, &_byte, portMAX_DELAY );
 		bt_com_call_back(_byte);
