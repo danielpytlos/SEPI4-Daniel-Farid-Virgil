@@ -28,7 +28,7 @@ static SemaphoreHandle_t  goal_line_semaphore = NULL;
 static QueueHandle_t _xBT_received_chars_queue = NULL;
 
 
-uint16_t accData[200]= {20, 65, 120, 55, 220, 75, 300, 60, 400, -30, 520, 65, 620, 55, 720, 50, 820, 70, 920, 0};
+uint16_t accData[8]= {0,100,150,200,250,70,400,0};
 uint8_t nextVal=0;
 uint8_t bt_initialised = 0;
 uint8_t charCount=0;
@@ -168,25 +168,30 @@ void learn() {
 
 void plannedTrack() {
 	uint16_t count = 0;
-	//uint16_t prog[200]= {20, 65, 120, 55, 220, 75, 300, 60, 400, -30, 520, 65, 620, 55, 720, 50, 820, 70, 920, 0};
+	//uint16_t prog[200]= {0,100,200,200};
 	uint16_t tacho = get_tacho_count();
-	set_motor_speed(60);
-	while (tacho < 1000)
+	//set_motor_speed(60);
+	while (tacho < 800)
 	{
 		if (tacho >= accData[count])
 		{
-			if (accData[count+1] > 0)
+			if (accData[count+1] <= 100)
 			{
+				set_brake_light(0);
 				set_motor_speed(accData[count+1]);
+			} else if (accData[count+1] > 100) {
+				set_brake(accData[count+1]-100);
+				set_brake_light(1);
+				set_motor_speed(0);
 			} else {
-				set_brake(abs(accData[count+1]));
+				set_motor_speed(0);
 			}
 			nextVal= accData[count+1];
 			count = count + 2;
 		}
 		tacho = tacho + get_tacho_count();
 	}
-	set_motor_speed(0);
+	set_brake_light(0);
 	set_motor_speed(0);
 	count +1;
 }
