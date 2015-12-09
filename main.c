@@ -18,6 +18,7 @@
 
 #include "task.h"
 #include "croutine.h"
+#include "timers.h"
 
 #define startup_TASK_PRIORITY				( tskIDLE_PRIORITY )
 #define just_a_task_TASK_PRIORITY			( tskIDLE_PRIORITY + 1 )
@@ -26,14 +27,16 @@
 static const uint8_t _BT_RX_QUEUE_LENGTH = 30; 
 static SemaphoreHandle_t  goal_line_semaphore = NULL;
 static QueueHandle_t _xBT_received_chars_queue = NULL;
+static TimerHandle_t xTimer;
 
 
-uint16_t accData[8]= {0,100,150,200,250,70,400,0};
-uint8_t nextVal=0;
+uint16_t accData[700]= {};
+uint16_t nextVal=0;
 uint8_t bt_initialised = 0;
 uint8_t charCount=0;
 char sendValue[5] = {};
 int tick;
+uint16_t samplingData[50][6] = {};
 
 void bt_status_call_back(uint8_t status) {
 	if (status == DIALOG_OK_STOP) {
@@ -41,6 +44,9 @@ void bt_status_call_back(uint8_t status) {
 		} else if (status == DIALOG_ERROR_STOP) {
 		// What to do??
 	}
+}
+void vTimerCallback( TimerHandle_t pxTimer ){
+	//xSemaphoreGive(xSemaphore);
 }
 
 void bt_com_call_back(uint8_t byte) {
@@ -111,19 +117,58 @@ void bt_com_call_back(uint8_t byte) {
 				break;
 			}
 			
+			case 'Q': {
+				int sl;
+				set_motor_speed(65);
+				//set_head_light(1);
+				//xTimer = xTimerCreate( "Timer",( 100 ), pdTRUE,( void * ) 42, vTimerCallback);
+				for (sl = 0; sl < 350; sl++)
+				{
+					samplingData[sl][0] = get_raw_x_accel();
+					samplingData[sl][1] = get_raw_y_accel();
+					samplingData[sl][2] = xTaskGetTickCount();
+					//uint16_t raw_z = get_raw_z_accel();
+					samplingData[sl][3] = get_raw_x_rotation();
+					samplingData[sl][4] = get_raw_y_rotation();
+					samplingData[sl][5] = get_tacho_count();
+					//xTimerStart(xTimer,0);
+					vTaskDelay(50);
+				}
+				set_brake_light(1);
+				set_motor_speed(0);
+				break;
+			}
+			
+			case 'q': {
+				int sl;
+				uint16_t raw_x;
+				uint16_t raw_y;
+				//uint16_t raw_z = get_raw_z_accel();
+				uint16_t raw_rx;
+				uint16_t raw_ry;
+				uint16_t tacho;
+				for (sl = 0; sl < 350; sl++)
+				{
+					raw_x = samplingData[sl][0];
+					raw_y = samplingData[sl][1];
+					tick = samplingData[sl][2];
+					//uint16_t raw_z = get_raw_z_accel();
+					raw_rx =  samplingData[sl][3];
+					raw_ry = samplingData[sl][4];
+					tacho = samplingData[sl][5];
+					vTaskDelay(150);
+					sprintf(buf, "x%4dy%4dz%4dr%4dq%4dt%4d", raw_x, raw_y, tick, raw_rx, raw_ry, tacho);
+					bt_send_bytes((uint8_t *)buf, strlen(buf));
+				}
+				set_brake_light(0);
+				break;
+			}
+			
 			case 'f': {
 				learn();
 				break;
 			}
 			
-			case 'G': {
-				uint16_t raw_x = get_raw_x_rotation();
-				uint16_t raw_y = get_raw_y_rotation();
-				uint16_t raw_xa = get_raw_x_accel();
-				sprintf(buf, "x%4d y%4d x%4d", raw_x, raw_y, raw_xa);
-				bt_send_bytes((uint8_t *)buf, strlen(buf));
-				break;
-			}
 			case 'N': {
 				tick = xTaskGetTickCount();
 				sprintf(buf, "%d", tick);
@@ -133,6 +178,11 @@ void bt_com_call_back(uint8_t byte) {
 			
 			case 'P': {
 				plannedTrack();
+				break;
+			}
+			
+			case 'p': {
+				plannedTrackWithSpeedMeas();
 				break;
 			}
 			
@@ -166,12 +216,52 @@ void learn() {
 	}
 }
 
+void plannedTrackWithSpeedMeas() {
+	get_tacho_count();
+	set_head_light(1);
+	uint16_t count = 0;
+	uint16_t cumulTacho = get_tacho_count();
+	uint16_t speedTacho;
+	uint16_t curSpeed=0;
+	uint16_t raceSpeed=0;
+	uint16_t ticks = xTaskGetTickCount();
+	while (cumulTacho < 1300)
+	{
+		vTaskDelay(20);
+		//ticks = xTaskGetTickCount() - ticks;
+		speedTacho = get_tacho_count();
+		cumulTacho = cumulTacho + speedTacho;
+		curSpeed = ((float)speedTacho/20)*100;
+		if (curSpeed > raceSpeed)
+		{
+			set_brake(100);
+		} else {
+			set_motor_speed(100);
+		}
+		if (cumulTacho >= accData[count])
+		{
+			raceSpeed = accData[count+1];
+			accData[count] = speedTacho;
+			accData[count+1] = curSpeed;
+			count = count + 2;
+		}
+	}
+	set_head_light(0);
+	curSpeed= 0.45;
+	set_brake_light(0);
+	set_motor_speed(0);
+	curSpeed= 0.45;
+	set_head_light(0);
+}
+
 void plannedTrack() {
+	get_tacho_count();
+	set_head_light(1);
 	uint16_t count = 0;
 	//uint16_t prog[200]= {0,100,200,200};
 	uint16_t tacho = get_tacho_count();
 	//set_motor_speed(60);
-	while (tacho < 800)
+	while (tacho < 1500)
 	{
 		if (tacho >= accData[count])
 		{
@@ -192,6 +282,7 @@ void plannedTrack() {
 		tacho = tacho + get_tacho_count();
 	}
 	set_brake_light(0);
+	set_head_light(0);
 	set_motor_speed(0);
 	count +1;
 }

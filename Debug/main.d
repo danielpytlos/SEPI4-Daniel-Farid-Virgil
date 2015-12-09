@@ -31,7 +31,8 @@ main.d main.o: .././main.c \
  .././include/../dialog_handler/dialog_handler.h \
  .././FreeRTOS/Source/include/FreeRTOS.h \
  ../FreeRTOS/Source/include/task.h ../FreeRTOS/Source/include/list.h \
- ../FreeRTOS/Source/include/croutine.h
+ ../FreeRTOS/Source/include/croutine.h \
+ ../FreeRTOS/Source/include/timers.h ../FreeRTOS/Source/include/task.h
 
 c:\program\ files\ (x86)\atmel\atmel\ toolchain\avr8\ gcc\native\3.4.1061\avr8-gnu-toolchain\avr\include\avr\io.h:
 
@@ -104,3 +105,7 @@ c:\program\ files\ (x86)\atmel\atmel\ toolchain\avr8\ gcc\native\3.4.1061\avr8-g
 ../FreeRTOS/Source/include/list.h:
 
 ../FreeRTOS/Source/include/croutine.h:
+
+../FreeRTOS/Source/include/timers.h:
+
+../FreeRTOS/Source/include/task.h:
