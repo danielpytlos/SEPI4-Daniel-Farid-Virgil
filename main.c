@@ -11,6 +11,7 @@
 #include <util/delay.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "include/board.h"
 /* Scheduler include files. */
@@ -21,13 +22,18 @@
 #include "timers.h"
 
 #define startup_TASK_PRIORITY				( tskIDLE_PRIORITY )
-#define just_a_task_TASK_PRIORITY			( tskIDLE_PRIORITY + 1 )
+#define planned_track_TASK_PRIORITY			( tskIDLE_PRIORITY + 1 )
+#define learn_TASK_PRIORITY					( tskIDLE_PRIORITY + 1 )
+#define just_a_task_TASK_PRIORITY			( tskIDLE_PRIORITY + 2 )
+#define samplingPoints						350
 
 
 static const uint8_t _BT_RX_QUEUE_LENGTH = 30; 
 static SemaphoreHandle_t  goal_line_semaphore = NULL;
+static SemaphoreHandle_t  race_semaphore = NULL;
+static SemaphoreHandle_t  learn_semaphore = NULL;
 static QueueHandle_t _xBT_received_chars_queue = NULL;
-static TimerHandle_t xTimer;
+//static TimerHandle_t xTimer;
 
 
 uint16_t accData[700]= {};
@@ -36,7 +42,7 @@ uint8_t bt_initialised = 0;
 uint8_t charCount=0;
 char sendValue[5] = {};
 int tick;
-uint16_t samplingData[50][6] = {};
+uint16_t samplingData[samplingPoints][2] = {};
 
 void bt_status_call_back(uint8_t status) {
 	if (status == DIALOG_OK_STOP) {
@@ -117,72 +123,16 @@ void bt_com_call_back(uint8_t byte) {
 				break;
 			}
 			
-			case 'Q': {
-				int sl;
-				set_motor_speed(65);
-				//set_head_light(1);
-				//xTimer = xTimerCreate( "Timer",( 100 ), pdTRUE,( void * ) 42, vTimerCallback);
-				for (sl = 0; sl < 350; sl++)
-				{
-					samplingData[sl][0] = get_raw_x_accel();
-					samplingData[sl][1] = get_raw_y_accel();
-					samplingData[sl][2] = xTaskGetTickCount();
-					//uint16_t raw_z = get_raw_z_accel();
-					samplingData[sl][3] = get_raw_x_rotation();
-					samplingData[sl][4] = get_raw_y_rotation();
-					samplingData[sl][5] = get_tacho_count();
-					//xTimerStart(xTimer,0);
-					vTaskDelay(50);
-				}
-				set_brake_light(1);
-				set_motor_speed(0);
+			case 'L': {
+				xSemaphoreGive(learn_semaphore);
+				//vLearnTrack(NULL);
 				break;
 			}
 			
-			case 'q': {
-				int sl;
-				uint16_t raw_x;
-				uint16_t raw_y;
-				//uint16_t raw_z = get_raw_z_accel();
-				uint16_t raw_rx;
-				uint16_t raw_ry;
-				uint16_t tacho;
-				for (sl = 0; sl < 350; sl++)
-				{
-					raw_x = samplingData[sl][0];
-					raw_y = samplingData[sl][1];
-					tick = samplingData[sl][2];
-					//uint16_t raw_z = get_raw_z_accel();
-					raw_rx =  samplingData[sl][3];
-					raw_ry = samplingData[sl][4];
-					tacho = samplingData[sl][5];
-					vTaskDelay(150);
-					sprintf(buf, "x%4dy%4dz%4dr%4dq%4dt%4d", raw_x, raw_y, tick, raw_rx, raw_ry, tacho);
-					bt_send_bytes((uint8_t *)buf, strlen(buf));
-				}
-				set_brake_light(0);
-				break;
-			}
-			
-			case 'f': {
-				learn();
-				break;
-			}
-			
-			case 'N': {
-				tick = xTaskGetTickCount();
-				sprintf(buf, "%d", tick);
-				bt_send_bytes((uint8_t *)buf, strlen(buf));
-				break;
-			}
-			
-			case 'P': {
-				plannedTrack();
-				break;
-			}
-			
-			case 'p': {
-				plannedTrackWithSpeedMeas();
+			case 'R': {
+				xSemaphoreGive(race_semaphore);
+				//xSemaphoreTake(race_semaphore,portMAX_DELAY);
+				//vPlannedTrack(NULL);
 				break;
 			}
 			
@@ -199,92 +149,90 @@ void bt_com_call_back(uint8_t byte) {
 	}
 }
 
-void learn() {
-	int i;
-	char buf[20];
-	
-	for (i= 0; i<100; i++)
+void vLearnTrack(void *pvParameters) {
+	( void ) pvParameters;
+	while (1)
 	{
-			uint16_t raw_x = get_raw_x_accel();
-			uint16_t raw_y = get_raw_y_accel();
-			uint16_t raw_z = get_raw_z_accel();
-			//uint16_t raw_rx = get_raw_x_rotation();
-			//uint16_t raw_ry = get_raw_y_rotation();
-			sprintf(buf, "%4d %4d %4d", raw_x, raw_y, raw_z);
-			bt_send_bytes((uint8_t *)buf, strlen(buf));
-			vTaskDelay( 100/ portTICK_PERIOD_MS);
-	}
-}
-
-void plannedTrackWithSpeedMeas() {
-	get_tacho_count();
-	set_head_light(1);
-	uint16_t count = 0;
-	uint16_t cumulTacho = get_tacho_count();
-	uint16_t speedTacho;
-	uint16_t curSpeed=0;
-	uint16_t raceSpeed=0;
-	uint16_t ticks = xTaskGetTickCount();
-	while (cumulTacho < 1300)
-	{
-		vTaskDelay(20);
-		//ticks = xTaskGetTickCount() - ticks;
-		speedTacho = get_tacho_count();
-		cumulTacho = cumulTacho + speedTacho;
-		curSpeed = ((float)speedTacho/20)*100;
-		if (curSpeed > raceSpeed)
+		if (xSemaphoreTake(learn_semaphore, portMAX_DELAY))
 		{
-			set_brake(100);
-		} else {
-			set_motor_speed(100);
-		}
-		if (cumulTacho >= accData[count])
-		{
-			raceSpeed = accData[count+1];
-			accData[count] = speedTacho;
-			accData[count+1] = curSpeed;
-			count = count + 2;
-		}
-	}
-	set_head_light(0);
-	curSpeed= 0.45;
-	set_brake_light(0);
-	set_motor_speed(0);
-	curSpeed= 0.45;
-	set_head_light(0);
-}
-
-void plannedTrack() {
-	get_tacho_count();
-	set_head_light(1);
-	uint16_t count = 0;
-	//uint16_t prog[200]= {0,100,200,200};
-	uint16_t tacho = get_tacho_count();
-	//set_motor_speed(60);
-	while (tacho < 1500)
-	{
-		if (tacho >= accData[count])
-		{
-			if (accData[count+1] <= 100)
+			uint16_t l;
+			set_motor_speed(43);
+			for (l = 0; l < samplingPoints; l++)
 			{
-				set_brake_light(0);
-				set_motor_speed(accData[count+1]);
-			} else if (accData[count+1] > 100) {
-				set_brake(accData[count+1]-100);
-				set_brake_light(1);
-				set_motor_speed(0);
-			} else {
-				set_motor_speed(0);
+				//samplingData[l][0] = get_raw_x_accel();
+				samplingData[l][0] = get_raw_y_accel();
+				//samplingData[l][2] = xTaskGetTickCount();
+				//uint16_t raw_z = get_raw_z_accel();
+				//samplingData[l][3] = get_raw_x_rotation();
+				//samplingData[l][4] = get_raw_y_rotation();
+				samplingData[l][1] = get_tacho_count();
+				vTaskDelay(50);
 			}
-			nextVal= accData[count+1];
-			count = count + 2;
+			set_motor_speed(0);
+			char buf[40];
+			
+			sprintf(buf, "!");
+			bt_send_bytes((uint8_t *)buf, strlen(buf));
+			
+			vTaskDelay(300);
+			set_brake_light(1);
+
+			//int sl;
+			uint16_t raw_x=0;
+			uint16_t raw_y;
+			uint16_t raw_rx=0;
+			uint16_t raw_ry=0;
+			uint16_t tacho;
+			l=0;
+			for (l = 0; l < samplingPoints; l++)
+			{
+				raw_y = samplingData[l][0];
+				tacho = samplingData[l][1];
+				vTaskDelay(160);
+				sprintf(buf, "x%4dy%4dz%4dr%4dq%4dt%4d", raw_x, raw_y, tick, raw_rx, raw_ry, tacho);
+				bt_send_bytes((uint8_t *)buf, strlen(buf));
+			}
+			set_brake_light(0);
 		}
-		tacho = tacho + get_tacho_count();
 	}
-	set_brake_light(0);
-	set_head_light(0);
-	set_motor_speed(0);
-	count +1;
+}
+
+void vPlannedTrack(void *pvParameters ) {
+	( void ) pvParameters;
+	while (1)
+	{
+		if (xSemaphoreTake(race_semaphore, portMAX_DELAY))
+		{
+			//free(samplingData);
+			get_tacho_count();
+			set_head_light(1);
+			uint16_t count = 0;
+			uint16_t tacho = get_tacho_count();
+			while (tacho < 1500)
+			{
+				if (tacho >= accData[count])
+				{
+					if (accData[count+1] <= 100)
+					{
+						set_brake_light(0);
+						set_motor_speed(accData[count+1]);
+					} else if (accData[count+1] > 100) {
+						set_brake(accData[count+1]-100);
+						set_brake_light(1);
+						set_motor_speed(0);
+					} else {
+						set_motor_speed(0);
+					}
+					nextVal= accData[count+1];
+					count = count + 2;
+				}
+				tacho = tacho + get_tacho_count();
+			}
+			set_brake_light(0);
+			set_head_light(0);
+			set_motor_speed(0);
+		}
+	}
 }
 
 
@@ -296,7 +244,12 @@ static void vjustATask( void *pvParameters ) {
 	for( ;; )
 	{
 		// Wait for goal line is passed
-		xSemaphoreTake(goal_line_semaphore, portMAX_DELAY);
+		if (xSemaphoreTake(goal_line_semaphore, portMAX_DELAY))
+		{
+			set_horn(1);
+			vTaskDelay(50);
+			set_horn(0);
+		}
 	}
 }
 
@@ -305,12 +258,13 @@ static void vstartupTask( void *pvParameters ) {
 	( void ) pvParameters;
 	
 	goal_line_semaphore = xSemaphoreCreateBinary();
+	race_semaphore = xSemaphoreCreateBinary();
+	learn_semaphore = xSemaphoreCreateBinary();
 	_xBT_received_chars_queue = xQueueCreate( _BT_RX_QUEUE_LENGTH, ( unsigned portBASE_TYPE ) sizeof( uint8_t ) );
 	
 	if( goal_line_semaphore == NULL ) {
 		/* There was insufficient OpenRTOS heap available for the semaphore to
 		be created successfully. */
-		// What to do here ?????????????????????????????????
 		} else {
 		set_goal_line_semaphore(goal_line_semaphore);
 	}
@@ -322,8 +276,13 @@ static void vstartupTask( void *pvParameters ) {
 	init_bt_module(bt_status_call_back, _xBT_received_chars_queue);
 	
 	xTaskCreate( vjustATask, "JustATask", configMINIMAL_STACK_SIZE, NULL, just_a_task_TASK_PRIORITY, NULL );
+	xTaskCreate( vLearnTrack, "LearnTrack", configMINIMAL_STACK_SIZE, NULL, learn_TASK_PRIORITY, NULL);
+	xTaskCreate( vPlannedTrack, "PlannedTrack", configMINIMAL_STACK_SIZE, NULL, planned_track_TASK_PRIORITY, NULL );
+	
+	
 	uint8_t _byte;
 	for( ;; ) {
+		xSemaphoreTake(learn_semaphore,1000);
 		xQueueReceive( _xBT_received_chars_queue, &_byte, portMAX_DELAY );
 		bt_com_call_back(_byte);
 	}
