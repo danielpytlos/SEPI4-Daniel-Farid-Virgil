@@ -1,12 +1,9 @@
-import dk.thibaut.serial.SerialPort;
-
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import javax.swing.SwingUtilities;
 
 import com.google.common.base.Stopwatch;
 
@@ -14,223 +11,279 @@ public class Main {
 
 	public static void main(String[] args) {
 
-		String buf = "";
-		String buf2 = "";
-		boolean start = true;
-		double[][] trackData = null;
-		ArrayList<Double> xArr = new ArrayList<Double>();
-		ArrayList<Double> yArr = new ArrayList<Double>();
+		String bluetoothDataString = "";
+		String tempBluetoothString = "";
+		boolean flag = true;
+		// double[][] trackData = {{}};
 		Stopwatch stopwatch = Stopwatch.createUnstarted();
-		int[] testData;
+		int[] raceDataPlan;
 
-		List<String> availablePorts = SerialPort.getAvailablePortsNames();
-
-		for (String availablePort : availablePorts) {
-			System.out.println(availablePort + " is available");
-		}
-
-		System.out.println("-------------------------------------");
-		//analyzeData(trackData);
+		System.out.println("Setting-up the connection");
 		SerialConnection serialConnection = new SerialConnection("COM6");
 
-		try {
-			System.out.println("Runing");
-			//serialConnection.write("D".getBytes());
-			//serialConnection.read();
-			stopwatch.start();
-			serialConnection.write("L".getBytes());
-			serialConnection.read();
-			while(start) {
-				buf2 = new String(serialConnection.read());
-				System.out.print(buf2.replaceAll("\\s+", "").trim());
-				if(buf2.charAt(0) == '!') {
-					start = false;
-				}
-			}
-			stopwatch.stop();
-			System.out.println("\n" + stopwatch.elapsed(TimeUnit.MILLISECONDS));
-			System.out.println("Getting Data");
-			int emptyCount=0;
-			start = true;
-			while(start) {
-				buf2 = new String(serialConnection.read());
-				System.out.println(buf2);
-				buf += buf2;
-				if(buf2.replaceAll("\\s+", "").trim().equals("")) {
-					emptyCount++;
-					if(emptyCount > 20) {
-						start = false;
-					}
-				}else {
-					emptyCount=0;
-				}
-			}
+		System.out.println("Learning the track");
+		serialConnection.write("L".getBytes());
+		serialConnection.read();
+		stopwatch.start();
 
-			System.out.println("-------------------------------------");
-			int l = 0;
-			String[] bufArr = buf.split("[xyzrqt]");
-			trackData = new double[((bufArr.length) / 6)][6];
-			System.out.println(bufArr.length);
-			int no=1;
-			for (int r = 0; r < trackData.length; r++) {
-				for (int c = 0; c < trackData[0].length; c++) {
-					try {
-						l = Integer.parseInt(bufArr[no] .replaceAll("\\s+", "").trim());
-						trackData[r][c] = (double) l;
-						no++;
-					} catch (Exception e) {
-						String temp = "";
-						for (int j = 0; j < bufArr[no].length(); j++) {
-							if ((int) bufArr[no].charAt(j) != 0) {
-								temp += bufArr[no].charAt(j);
-							}
+		/* Wait for signal('!') that car stopped sampling the track */
+		while (flag) {
+			tempBluetoothString = new String(serialConnection.read());
+			// System.out.print(tempBluetoothString.replaceAll("\\s+",
+			// "").trim());
+			if (tempBluetoothString.charAt(0) == '!') {
+				flag = false;
+			}
+		}
+		stopwatch.stop();
+		System.out.println("\n Learning time: "
+				+ stopwatch.elapsed(TimeUnit.MILLISECONDS));
+		System.out.println("Receiving the data");
+		flag = true;
+
+		/* Reading sampling data until 15 empty readings */
+		while (flag) {
+			tempBluetoothString = new String(serialConnection.read());
+			System.out.println(tempBluetoothString);
+			bluetoothDataString += tempBluetoothString;
+			if (tempBluetoothString.contains("!")) {
+				flag = false;
+			}
+			/*
+			 * if (tempBluetoothString.replaceAll("\\s+", "").trim().equals(""))
+			 * { emptyCount++; if (emptyCount > 15) { start = false; } } else {
+			 * emptyCount = 0; }
+			 */
+		}
+
+		/* Splitting the string into single readings */
+		String[] bufArr = bluetoothDataString.split("[yzt]");
+
+		System.out.println("Number of readings: " + (bufArr.length - 1)
+				+ " \nSampling points: " + (bufArr.length - 1) / 3);
+
+		/* Filtering the received data and inputing it into 2D array */
+		final double[][] trackData = new double[((bufArr.length) / 3)][3];
+		int parsedInteger = 0;
+		int no = 1;
+		for (int r = 0; r < trackData.length; r++) {
+			for (int c = 0; c < trackData[0].length; c++) {
+				try {
+					parsedInteger = Integer.parseInt(bufArr[no].replaceAll(
+							"[\\s+!]", "").trim());
+					trackData[r][c] = (double) parsedInteger;
+					no++;
+				} catch (Exception e) {
+					String temp = "";
+					for (int j = 0; j < bufArr[no].length(); j++) {
+						if ((int) bufArr[no].charAt(j) != 0) {
+							temp += bufArr[no].charAt(j);
 						}
-						if (!temp.equals("")) {
-							trackData[r][c] = (double) Integer.parseInt(temp.replaceAll("\\s+", "").trim());
-						}
-						no++;
 					}
+					if (!temp.equals("")) {
+						trackData[r][c] = (double) Integer.parseInt(temp
+								.replaceAll("[\\s+!]", "").trim());
+					}
+					no++;
 				}
 			}
-			for(int i = 0; i < trackData.length; i++){
-				trackData[i][0] = trackData[i][0]/16384;
-				trackData[i][1] = trackData[i][1]/16384;
-				//trackData[i][2] = trackData[i][2]/16384;
-				trackData[i][3] = trackData[i][3]/65.5;
-				trackData[i][4] = trackData[i][4]/65.5;
+		}
+
+		/* Converting from raw data to actual readings */
+		for (int i = 0; i < trackData.length; i++) {
+			trackData[i][0] = trackData[i][0] / 16384;
+			trackData[i][1] = trackData[i][1] / 65.5;
+		}
+
+		/* Write data to .csv file for easier analysis in MS Excel */
+		writeDataToFile(trackData);
+
+		/* Analyze the data- detect the straights, curves and make a race plan */
+		raceDataPlan = calculateRacePlan(trackData);
+
+		try {
+			Thread.sleep(500);
+		} catch (Exception e) {
+		}
+
+		/* Give signal for sending the data */
+		serialConnection.write("S".getBytes());
+
+		/* Send the race data plan */
+		System.out.println("Sending data");
+		for (int i = 0; i < raceDataPlan.length; i++) {
+			try {
+				Thread.sleep(20);
+			} catch (Exception e) {
 			}
-			System.out.println(Arrays.deepToString(trackData));
-			BufferedWriter out = new BufferedWriter(new FileWriter(
-					"viacardump.csv"));
+			serialConnection.write((raceDataPlan[i] + "!").getBytes());
+		}
+
+		/* Give signal that we stopped sending the data */
+		serialConnection.write("s".getBytes());
+		serialConnection.read();
+		try {
+			Thread.sleep(1000);
+		} catch (Exception e) {
+		}
+
+		/* Start racing */
+		//serialConnection.write("R".getBytes());
+		//serialConnection.read();
+		System.out.println("START!");
+		serialConnection.write("s".getBytes());
+		serialConnection.read();
+
+		serialConnection.close();
+		System.out.println("Connection closed \nDisplaying track data");
+
+		/* Display the graph with data */
+		SwingUtilities.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				new JChartGraph(trackData, raceDataPlan).setVisible(true);
+			}
+		});
+	}
+
+	public static void writeDataToFile(double[][] trackData) {
+		BufferedWriter writer;
+		try {
+			writer = new BufferedWriter(new FileWriter("viacardump.csv"));
 			for (int row = 0; row < trackData.length; row++) {
 				for (int col = 0; col < trackData[0].length; col++) {
-					out.write(trackData[row][col] + ",");
+					writer.write(trackData[row][col] + ",");
 				}
-				out.newLine();
+				writer.newLine();
 			}
-			out.write("First " + "\n");
-			out.newLine();
-			out.close();
-			
-			/*double theta,xnew,ynew;
-			for(int iter = 27; iter <= 98; iter++){
-				theta = Math.atan2(trackData[iter][1], trackData[iter][4]);
-				xnew = (trackData[iter][4]*50*0.006) * Math.cos(theta) - (trackData[iter][1]*50) * Math.sin(theta);
-				xArr.add(xnew);
-				ynew = (trackData[iter][4]*50*0.006) * Math.sin(theta) + (trackData[iter][1]*50) * Math.cos(theta);
-				yArr.add(ynew);
-			}
-			
-			for (int x = 0; x < xArr.size(); x++) {
-				System.out.print(xArr.get(x) + ", ");
-			}
-			System.out.println("\n");
-			for (int x = 0; x < yArr.size(); x++) {
-				System.out.print(yArr.get(x) + ", ");
-			}*/
-
-			testData = analyzeData(trackData);
-			try {
-				Thread.sleep(1000);
-			} catch (Exception e) {
-			}
-			System.out.println("Sending data");
-			for (int i = 0; i < testData.length; i++) {
-				try {
-					Thread.sleep(20);
-				} catch (Exception e) {
-				}
-				serialConnection.write((testData[i] +"!").getBytes());
-			}
-			try {
-				Thread.sleep(1000);
-			} catch (Exception e) {
-			}
-			serialConnection.read();
-			System.out.println("START!");
-			serialConnection.write("B".getBytes());
-			serialConnection.write("R".getBytes());
-			serialConnection.close();
+			writer.newLine();
+			writer.close();
 		} catch (IOException e) {
+			e.printStackTrace();
 			System.out.println("Writing exception");
 		}
+
 	}
-	
-	public static int[] analyzeData(double[][] trackData) {
+
+	public static int[] calculateRacePlan(double[][] trackData) {
+		final double NORMAL_CURVE_BREAKING_POINT_CONSTANT = 0.8;
+		final double SHARP_CURVE_BREAKING_POINT_CONSTANT = 0.65;
+
 		int raceCounter = 0;
-		int[] raceData;;
-		double[] accY = new double[trackData.length];
-		int[] tachoArr = new int[trackData.length];
-		//double[] accY = {0.052001953, 0.055664063, 0.081542969, 0.044189453, -0.113037109, 0.059814453, -0.002929688, 0.084716797, 0.343261719, -0.030761719, -0.193359375, -0.019287109, 0.220214844, 0.056884766, 0.075927734, 0.036621094, 0.235595703, 0.500488281, 0.424560547, 0.681396484, 0.641113281, 0.561035156, 0.657714844, 0.677734375, 0.654541016, 0.339111328, 0.378173828, 0.291259766, 0.650146484, 0.383300781, 0.510253906, 0.6171875, 0.677978516, -0.019042969, -0.164550781, -0.511474609, -0.631591797, -0.567626953, -0.576904297, -0.362792969, -0.658447266, -0.594238281, -0.668701172, -0.582763672, -0.539794922, -0.475830078, -0.263671875, 0.527587891, 0.527099609, 0.661376953, 0.516845703, 0.209960938, 0.571533203, -0.049316406, 0.324707031, 0.421142578, 0.834228516, 0.418701172, 0.780517578, 0.276611328, 0.572509766, 0.549072266, 0.486572266, 0.468505859, -0.229248047, -0.557617188, -0.383300781, 0.210205078, 0.45703125, 0.272216797, 0.555908203, -0.285888672, -0.203369141, -0.491943359, 0.008544922, -0.024169922, 0.590332031, 0.339599609, 0.262695313, 0.322753906, 0.228027344, 0.065185547, 0.035888672, -0.054443359, 0.199951172, 0.063720703, 0.071533203, -0.043701172, 0.090087891, 0.052001953, -0.137207031, 0.138183594, 0.139404297, 0.332275391, -0.141845703, -0.171142578, 0.167724609, 0.098388672, -0.015625, 0.163085938, 0.044677734, 0.034912109, 0.216796875, 0.232421875, -0.167480469, -0.105957031, 0.076416016, 0.236572266, -0.021972656, -0.206787109, -0.029541016, -0.017578125, -0.028076172, 0.003417969, 0.041503906, -0.006835938, -0.102050781, 0.188964844, 0.288574219, 1.178466797, 1.511962891, 0.547119141, 0.572021484, 0.755615234, 0.631347656, 0.850830078, 0.808105469, 0.973876953, 0.533447266, 0.393066406, 0.232177734, -0.140380859, -0.178710938, 0.059082031, -0.021728516, 0.152587891, 0.500488281, -0.054931641, -0.298828125, 0.004394531, 0.226806641, 0.03515625, 0.023193359, 0.038330078, -0.841552734, -0.550292969, -1.135253906, -1.250244141, -0.617919922, -0.836669922, -0.671142578, -0.803710938, -0.803466797, -0.827636719, -0.673583984, -0.243896484, 0.173339844, 0.099853516, -0.004638672, 0.067138672, 0.069091797, 0.285644531, -0.050292969, 0.342529297, 0.75, 0.303222656, 0.528564453, 0.652587891, 0.754150391, 0.565185547, 0.332275391, 0.35546875, 0.679443359, 0.440673828, 0.579833984, 0.503662109, 0.534912109, 0.338623047, 0.532714844, 0.426269531, 0.479492188, 0.648925781, 0.204345703, 0.111816406, 0.125, 0.22265625, 0.147949219, -0.237060547, 0.132568359, -0.013671875, 0.099365234, -0.095947266, 0.029052734, 0.026855469, -0.086181641, 0.131103516, -0.069824219, 0.059326172, 0.096435547, -0.150878906, 0.362060547, 0.154541016, 0.060058594, -0.049560547, 1.102539063, 1.478759766, 1.269287109, 0.71875, 0.763671875, 0.796142578, 0.382080078, 0.092041016, 0.11328125, 0.04296875, -0.089599609, -0.105224609, -0.201416016, -0.106689453, -0.135498047, -0.380615234, -0.055419922, 0.141113281, 0.002685547, 0.170898438, 0.050292969, 0.073974609, 0.001953125, 0.144775391, -0.086914063, -0.270507813, -0.909667969, -1.35546875, -0.927246094, -0.871582031, -0.090332031, -1.161621094, -0.008544922, 0.140625, -0.077636719, -0.196289063, -0.986816406, -0.442871094, -0.812011719, -0.948242188, -0.746582031, -0.172363281, -0.077880859, -0.12109375, -0.102783203, 0.091552734, 0.063232422, -0.044433594, 0.09375, -0.201660156, -0.09375, 0.035888672, 0.099121094, -0.080078125, -0.711914063, -1.153808594, -0.867675781, -1.354736328, -1.023925781, 0.728759766, 0.774658203, 1.002441406, 0.896240234, 0.493408203, 0.551269531, 0.64453125, -0.411621094, -0.454833984, -0.323242188, 0.405029297, 1.05078125, 0.55859375, 0.489257813, 0.239990234, 0.721191406, 0.570556641, 0.658691406, 0.244628906, 0.401367188, 0.434326172, 0.361816406, 0.2890625, 0.028808594, -0.119140625, -0.399414063, 0.131591797, 0.194580078, 0.106201172, 0.020263672, -0.174804688, -0.024902344, -0.061767578, -0.045410156, -0.165771484, 0.114501953, 0.347900391, 0.689453125, 1.192138672, 1.079101563, 0.739013672, 0.201904297, 0.528564453, 0.861328125, 0.674316406, 0.562255859, 0.433837891, 0.610351563, 0.722412109, 0.668945313, 0.152587891, -0.458007813, -0.586669922, -0.588867188, -0.801513672, -0.627441406, -0.671142578, -0.447265625, -0.65625, -0.606445313, -0.478515625, -0.426025391, -0.609375, -0.048339844, -0.076416016, 0.393554688, 0.599609375, 0.204101563, 0.649902344, 0.544677734, 0.479248047, 0.551025391, 0.543457031, 0.305908203, 0.551269531, 0.513671875, 0.621582031, 0.465820313, 0.489746094, 0.468994141, 0.511230469, -0.039306641, -0.210693359, -0.291259766, 0.217041016, 0.335449219, 0.192138672};	
-		//int[] tachoArr ={0, 1, 1, 2, 4, 5, 7, 10, 12, 15, 19, 22, 26, 29, 33, 38, 42, 46, 51, 56, 60, 65, 69, 74, 78, 82, 86, 90, 95, 99, 103, 107, 111, 115, 119, 123, 127, 131, 135, 138, 142, 146, 150, 154, 158, 161, 165, 169, 173, 176, 180, 184, 188, 192, 196, 200, 204, 208, 212, 216, 220, 224, 228, 232, 236, 240, 244, 248, 252, 256, 260, 264, 268, 272, 276, 279, 283, 287, 290, 294, 297, 301, 304, 308, 311, 315, 319, 323, 327, 331, 336, 340, 345, 350, 355, 360, 365, 370, 375, 381, 386, 392, 398, 404, 410, 416, 423, 429, 436, 443, 450, 456, 463, 470, 477, 484, 491, 498, 505, 511, 518, 524, 529, 534, 539, 545, 549, 554, 559, 563, 567, 571, 576, 580, 584, 589, 594, 598, 603, 609, 614, 619, 624, 630, 636, 641, 647, 652, 656, 661, 666, 670, 674, 679, 683, 686, 690, 693, 697, 701, 704, 709, 713, 717, 722, 727, 731, 736, 740, 745, 749, 753, 757, 761, 765, 769, 773, 777, 781, 785, 789, 793, 797, 801, 805, 809, 814, 819, 824, 829, 834, 839, 845, 850, 855, 861, 866, 872, 878, 884, 889, 895, 901, 907, 913, 919, 925, 930, 935, 940, 945, 950, 954, 959, 964, 969, 975, 980, 985, 991, 997, 1002, 1008, 1014, 1020, 1026, 1032, 1038, 1045, 1051, 1057, 1063, 1068, 1073, 1077, 1082, 1086, 1090, 1094, 1099, 1104, 1109, 1114, 1118, 1123, 1127, 1131, 1136, 1140, 1145, 1149, 1154, 1159, 1164, 1169, 1175, 1180, 1186, 1192, 1199, 1205, 1211, 1216, 1222, 1227, 1232, 1237, 1242, 1246, 1251, 1255, 1260, 1264, 1268, 1272, 1277, 1281, 1285, 1289, 1293, 1297, 1301, 1305, 1309, 1313, 1316, 1320, 1324, 1328, 1333, 1337, 1342, 1346, 1351, 1356, 1361, 1367, 1372, 1377, 1383, 1388, 1394, 1399, 1404, 1408, 1413, 1417, 1422, 1426, 1430, 1434, 1439, 1443, 1447, 1451, 1455, 1459, 1464, 1468, 1472, 1476, 1480, 1484, 1487, 1491, 1495, 1499, 1502, 1506, 1510, 1514, 1518, 1522, 1526, 1530, 1534, 1537, 1541, 1545, 1549, 1553, 1557, 1561, 1565, 1569, 1573, 1577, 1580, 1584, 1588};
-		double[] speedArr= new double[350];
-		double[] speedArr2= new double[350];
+		int breakPointsCounter = 0;
 		int cumulativeTacho = 0;
+		int[] raceData;
+		int[] breakPoints = new int[350];
+		double[] accY = new double[trackData.length];
+		double[] gyroZ = new double[trackData.length];
+		int[] tacho = new int[trackData.length];
+
+		/* Store data from 2D array into separate 1D arrays */
 		for (int i = 0; i < trackData.length; i++) {
-			accY[i] = trackData[i][1];
-			cumulativeTacho += trackData[i][5];
-			tachoArr[i] = cumulativeTacho;
+			accY[i] = trackData[i][0];
+			gyroZ[i] = trackData[i][1];
+			cumulativeTacho += trackData[i][2];
+			tacho[i] = cumulativeTacho;
 		}
-		tachoArr[0]=0;
-		speedArr[0]=accY[0];
-		for (int i = 1; i < accY.length; i++) {
-			speedArr[i] = speedArr[i-1]+0.4*(accY[i]-speedArr[i-1]);
-			//System.out.println(speedArr[i]);
-		}
-		for (int i = 0; i < speedArr.length; i++) {
-			speedArr[i] = 1-Math.abs(speedArr[i]);
-			//System.out.println(speedArr[i]);
-		}
-		speedArr2[0]=1;
-		for (int i = 1; i < speedArr2.length; i++) {
-			speedArr2[i] = speedArr2[i-1]+0.2*(speedArr[i]-speedArr2[i-1]);
-			//System.out.println(speedArr2[i]);
-		}
-		raceData = new int[tachoArr.length*2];
+
+		/* Make an array that stores race plan- tacho count and speed */
+		raceData = new int[tacho.length * 2];
 		raceData[0] = 0;
-		for (int i = 0; i < tachoArr.length; i++) {
-			raceData[raceCounter+1]=(int) ((Math.pow(2, (speedArr2[i]/0.976))-1)*90);
-			//System.out.println(raceData[raceCounter+1]);
-			raceData[raceCounter]= tachoArr[i];
-			raceCounter = raceCounter+2;
-		}
-		
-		for (int i = 1; i < raceData.length; i+=2) {
-			if(raceData[i]<50){
-				raceData[i]=60;
+		tacho[0] = 0;
+
+		/*
+		 * Detect when the car is rotating(gyroscope reading > 100) and then set
+		 * the motor speed of 65
+		 */
+		for (int i = 0; i < tacho.length; i++) {
+			if (Math.abs(gyroZ[i]) < 100) {
+				raceData[raceCounter + 1] = 85;
+				raceData[raceCounter] = tacho[i];
+			} else {
+				raceData[raceCounter + 1] = 65;
+				raceData[raceCounter] = tacho[i];
 			}
-			if(raceData[i]>100){
-				raceData[i]=100;
-			}
+			raceCounter = raceCounter + 2;
 		}
+
+		/* Initialize the variables for curve and straight detection */
+		int[] straightStart = { 0, 0 };
+		int[] straightEnd = { 0, 0 };
+		int[] curveEnd = { 0, 0 };
+
 		int straightLength = 0;
-		int[] straightStart = {0,0};
-		int[] straightEnd = {0,0};
+		int curveLength = 0;
 		int breakPoint = 0;
-		boolean straight = false;
-		
-		for (int i = 21; i < raceData.length; i+=2) {
-			if(raceData[i] >= 85 && !straight) {
-				straightStart[0] = raceData[i-1];
+
+		boolean isStraight = false;
+
+		/* Algorithm for calculating the break points */
+		for (int i = 31; i < raceData.length; i += 2) {
+			if (raceData[i] >= 85 && !isStraight) {
+				straightStart[0] = raceData[i - 3];
 				straightStart[1] = i;
-				straight = true;
+				isStraight = true;
 			}
-			if(straight && raceData[i] < 85) {
-				straightEnd[0] = raceData[i-3];
+			if (isStraight && raceData[i] < 85) {
+				straightEnd[0] = raceData[i - 3];
 				straightEnd[1] = i;
-				straight = false;
+				isStraight = false;
+
 				straightLength = straightEnd[0] - straightStart[0];
-				breakPoint = (int) (straightStart[0] + (straightLength*0.55));
-				
-				if(straightLength>10) {
-					System.out.println("Straight: " + straightStart[0] + " to " + straightEnd[0] + " Length: " 
-							+ straightLength + " Break point: "  + breakPoint);
-					for (int j = straightStart[1]; j <= straightEnd[1]; j+=2) {
-						if(raceData[j-1]>breakPoint) {
-							raceData[j-2] = 200;
+
+				/*
+				 * Calculate breaking point if straight is longer than 10 tacho
+				 * count, otherwise ignore.
+				 */
+				if (straightLength > 10) {
+					/* Detect end of the curve */
+					for (int j = i; j < raceData.length; j += 2) {
+						if (raceData[j] >= 85) {
+							curveEnd[0] = raceData[j - 3];
+							curveEnd[1] = j - 3;
+							break;
+						}
+					}
+					curveLength = curveEnd[0] - straightEnd[0];
+
+					/*
+					 * Calculate the point when to start breaking depending on
+					 * the curve: If curve ahead is less than 40 tacho counts
+					 * then curve is sharp, and we have to apply the break
+					 * faster, otherwise apply the standard break constant.
+					 * 
+					 * TODO: Upgrade the algorithm to consider also the straight
+					 * length
+					 */
+					if (curveLength < 40 && straightLength > 40) {
+						breakPoint = (int) (straightStart[0] + (straightLength * SHARP_CURVE_BREAKING_POINT_CONSTANT));
+					} else {
+						breakPoint = (int) (straightStart[0] + (straightLength * NORMAL_CURVE_BREAKING_POINT_CONSTANT));
+					}
+
+					System.out.println("Straight: " + straightStart[0] + " to "
+							+ straightEnd[0] + " Length: " + straightLength
+							+ " Break point: " + breakPoint);
+					System.out.println("Curve: " + straightEnd[0] + " to "
+							+ curveEnd[0] + " Length: " + curveLength);
+
+					/*
+					 * Calculate breaking points from breakPoint to the middle
+					 * of the curve and add them to array.
+					 */
+					for (int j = straightStart[1]; j <= straightEnd[1]
+							+ ((curveEnd[1] - straightEnd[1]) / 2); j += 2) {
+						if (raceData[j - 1] > breakPoint) {
+							breakPoints[breakPointsCounter] = j;
+							breakPointsCounter++;
 						}
 					}
 				}
+
+				/* Reset the variables */
+				curveEnd[0] = 0;
+				curveEnd[1] = 0;
+				curveLength = 0;
 				straightLength = 0;
 				straightEnd[0] = 0;
 				straightEnd[1] = 0;
@@ -238,48 +291,113 @@ public class Main {
 				straightStart[1] = 0;
 			}
 		}
-		
-		//raceData[raceCounter] = 0;
-		//raceData[raceCounter+1] = 70;
-		//raceCounter = raceCounter+2;
-		/*for (int r = 0; r < accY.length; r++) {
-			//cumulativeTacho = cumulativeTacho + trackData[r][5].intValue();
-			if(accY[r]>0.4||accY[r]<-0.4) {
-				distanceBetween = tachoArr[r] - tachoArr[tempR];
-				if(distanceBetween < 50) {
-					speed = 65;
-					raceData[raceCounter] = tachoArr[tempR];
-					raceData[raceCounter+1] = speed;
-					raceCounter = raceCounter+2;
-				}else if(distanceBetween >= 50 && distanceBetween < 100) {
-					speed = 75;
-					raceData[raceCounter] = tachoArr[tempR];
-					raceData[raceCounter+1] = speed;
-					raceCounter = raceCounter+2;
-					speed = 65;
-					raceData[raceCounter] = tachoArr[tempR] + 20+10;
-					raceData[raceCounter+1] = speed;
-					raceCounter = raceCounter+2;
-				} else {
-					speed = 83;
-					raceData[raceCounter] = tachoArr[tempR];
-					raceData[raceCounter+1] = speed;
-					raceCounter = raceCounter+2;
-					speed = 180;
-					raceData[raceCounter] = (int) (tachoArr[tempR] + (distanceBetween*0.65));
-					raceData[raceCounter+1] = speed;
-					raceCounter = raceCounter+2;
-					speed = 65;
-					raceData[raceCounter] = tachoArr[tempR] + distanceBetween;
-					raceData[raceCounter+1] = speed;
-					raceCounter = raceCounter+2;
-				}
-				tempR = r;
-			}
-		}*/
-		for (int item : raceData) {   
-		    System.out.println(item + ", ");
+		for (int k = 0; k < breakPoints.length; k++) {
+			raceData[breakPoints[k]] = 200;
+		}
+		raceData[0] = 0;
+		for (int item : raceData) {
+			System.out.print(item + ", ");
+		}
+		System.out.println();
+		for (int k = 0; k < breakPoints.length; k++) {
+			System.out.print(raceData[breakPoints[k] + 1] + ", ");
 		}
 		return raceData;
 	}
 }
+
+/* Data used for testing without the need of running the car */
+/*
+ * double[] gyroZ = {0.41221374, 3.832061069, 7.312977099, 9.58778626,
+ * 12.73282443, 1.328244275, 20.16793893, -3.358778626, 13.48091603,
+ * -4.305343511, 2.870229008, 12.91603053, 2.213740458, -13.49618321,
+ * -4.442748092, 13.8778626, 10.88549618, 1.175572519, 1.938931298,
+ * -28.77862595, -152.5038168, -235.8015267, -273.7251908, -227.4198473,
+ * -233.9847328, -227.0381679, -210.7328244, -187.9847328, -219.0076336,
+ * -223.1145038, -216.0152672, -211.8931298, -223.4198473, -209.3435115,
+ * -193.8320611, -137.740458, 8.717557252, 91.81679389, 143.221374, 181.129771,
+ * 187.1908397, 200.5648855, 193.4503817, 225.1908397, 208.9312977, 186.1832061,
+ * 180.5496183, 198.2748092, 195.8167939, 198.5954198, 186.870229, 208.9770992,
+ * 202.3053435, 206.9618321, 121.3129771, -80.29007634, -180.5038168,
+ * -255.7709924, -285.2366412, -240.7022901, -223.1145038, -199.2061069,
+ * -220.9007634, -231.0687023, -221.4198473, -227.2671756, -228.2442748,
+ * -229.6335878, -197.3129771, -206.0305344, -52.04580153, 64.96183206,
+ * 112.3664122, 153.3740458, 180.5038168, 48.97709924, -111.5725191,
+ * -207.648855, -218.9770992, -44.30534351, 72.70229008, 131.0076336,
+ * 167.4351145, 178.5801527, -20.38167939, -126.7938931, -178, -206.7328244,
+ * -95.8778626, -52.7480916, -16.58015267, -6.366412214, -11.49618321,
+ * 0.671755725, 3.511450382, -8.671755725, -10.61068702, -4.732824427,
+ * -0.702290076, -8.885496183, -9.847328244, 0.625954198, 2.977099237,
+ * 8.839694656, 6.091603053, 7.358778626, 12.65648855, 13.96946565,
+ * -1.740458015, -11.4351145, -7.694656489, -9.633587786, -3.465648855,
+ * 9.06870229, 4.870229008, -5.145038168, -10.32061069, 9.832061069,
+ * -8.610687023, -8.41221374, 6.763358779, -11.49618321, 4.13740458,
+ * -1.267175573, 18.64122137, -11.49618321, 16.70229008, -3.389312977,
+ * 13.3740458, -1.450381679, -7.526717557, -6.320610687, 7.526717557,
+ * -1.755725191, -274.6412214, -452.7480916, -460.5343511, -311.5267176,
+ * -217.2519084, -301.5419847, -326.2290076, -276.610687, -275.3282443,
+ * -277.9847328, -251.1755725, -153.2061069, -63.90839695, -27.81679389,
+ * -16.54961832, -6.045801527, -6.732824427, -10.01526718, -1.129770992,
+ * -2.458015267, 2.885496183, 6.290076336, 9.969465649, 2.748091603,
+ * -7.312977099, -13.4351145, -5.526717557, 165.2824427, 241.5114504,
+ * 263.5572519, 253.648855, 246.9465649, 265.8167939, 253.4351145, 246.6564885,
+ * 230.5343511, 230.0610687, 226.259542, 213.8015267, 194.1068702, 206.3358779,
+ * 225.2366412, -44.41221374, -194.2900763, -267.1908397, -293.9694656,
+ * -256.6717557, -243.3435115, -210.6259542, -242.7022901, -235.129771,
+ * -232.9923664, -239.5572519, -246.7480916, -236.4580153, -223.0534351,
+ * -122.3206107, -63.63358779, -31.51145038, -15.17557252, -24.77862595,
+ * -21.86259542, -15.80152672, 2.519083969, 6.229007634, 4.091603053,
+ * -0.152671756, -10.03053435, -6.503816794, -5.06870229, 6.213740458,
+ * 6.366412214, 7.541984733, -6.13740458, -13.35877863, -0.885496183,
+ * 16.6870229, -199.7709924, -336.1679389, -352.2137405, -289.3435115,
+ * -254.351145, -230.4274809, -73.41984733, -29.03816794, -20.07633588,
+ * -8.824427481, 10.61068702, 4.488549618, 24.45801527, 12.22900763,
+ * 6.992366412, 2.305343511, -18.25954198, 0.564885496, 10.65648855,
+ * 2.900763359, -9.847328244, -1.755725191, 16.50381679, -4.885496183,
+ * -20.09160305, 11.32824427, 3.267175573, -11.14503817, 43.70992366,
+ * 240.4122137, 298.1679389, 260.1526718, 260.6870229, 250.3664122, 241.4045802,
+ * 162.5496183, 37.26717557, 24.27480916, -1.099236641, -20.67175573, -14,
+ * 124.8091603, 214.5954198, 241.0534351, 231.221374, 241.4503817, 246.870229,
+ * 219.3282443, 215.1755725, 77.52671756, 44.04580153, 41.34351145, 10.91603053,
+ * 20.1221374, 4.091603053, -10.19847328, -9.389312977, 1.938931298,
+ * 9.114503817, 6.717557252, -16.5648855, -5.633587786, 18.39694656,
+ * 264.4732824, 332.8091603, 274.5801527, 291.5267176, 255.4045802, 232.4580153,
+ * -142.3358779, -309.1450382, -375.1908397, -330.4122137, -246.8854962,
+ * -139.4503817, 49.22137405, 144.0916031, 193.2824427, 190.0458015,
+ * -84.16793893, -181.8473282, -259.9694656, -281.9847328, -233.4961832,
+ * -218.870229, -242.0610687, -221.6946565, -213.9083969, -210.0305344,
+ * -207.5419847, -107.9083969, -49.3129771, -21.40458015, -3.740458015,
+ * 0.366412214, -7.358778626, -18.87022901, -12.6259542, -18.6870229,
+ * -17.78625954, -0.534351145, -14.90076336, 5.358778626, 10.79389313,
+ * 18.97709924, -2.198473282, -156.5954198, -270.5954198, -364.7022901,
+ * -288.1679389, -244.1984733, -280.4427481, -241.2824427, -271.4656489,
+ * -249.1908397, -256.1679389, -240.7022901, -238.4580153, -235.2671756,
+ * -193.9389313, 2.473282443, 83.83206107, 152.778626, 184.4122137, 185.1755725,
+ * 205.3587786, 189.6183206, 209.5877863, 205.5267176, 193.8473282, 202.519084,
+ * 203.0687023, 210.1068702, 204.5343511, 210.7633588, 206.610687, 194.4427481,
+ * 219.7862595, -33.3740458}; int[] tachoArr = {0, 0, 0, 1, 2, 4, 5, 7, 10, 12,
+ * 15, 17, 20, 24, 27, 30, 34, 37, 41, 45, 48, 52, 56, 59, 63, 66, 69, 72, 76,
+ * 79, 82, 85, 88, 91, 94, 97, 100, 103, 107, 110, 114, 117, 121, 124, 128, 131,
+ * 135, 139, 142, 146, 150, 153, 157, 161, 164, 168, 172, 175, 179, 183, 186,
+ * 189, 193, 196, 199, 203, 206, 209, 212, 215, 218, 221, 225, 228, 231, 234,
+ * 238, 241, 244, 248, 251, 254, 258, 261, 264, 268, 271, 274, 277, 280, 283,
+ * 285, 288, 291, 294, 296, 299, 302, 305, 308, 311, 315, 319, 322, 326, 330,
+ * 334, 339, 343, 347, 352, 356, 361, 366, 371, 375, 381, 386, 391, 397, 403,
+ * 409, 414, 421, 427, 433, 439, 445, 451, 457, 463, 469, 475, 481, 487, 493,
+ * 498, 504, 508, 513, 517, 522, 526, 530, 534, 537, 541, 545, 548, 552, 556,
+ * 560, 564, 569, 573, 577, 582, 586, 591, 596, 601, 605, 610, 615, 620, 624,
+ * 629, 633, 638, 642, 646, 651, 655, 659, 663, 667, 671, 675, 679, 683, 687,
+ * 691, 694, 698, 701, 705, 708, 712, 715, 719, 722, 725, 729, 732, 735, 739,
+ * 743, 747, 751, 755, 759, 763, 768, 772, 777, 781, 786, 791, 796, 801, 805,
+ * 810, 815, 820, 825, 829, 833, 837, 841, 845, 849, 853, 857, 862, 866, 870,
+ * 875, 880, 885, 890, 894, 900, 905, 910, 915, 920, 926, 931, 936, 942, 947,
+ * 952, 957, 962, 967, 971, 975, 979, 983, 987, 991, 995, 1000, 1004, 1008,
+ * 1013, 1017, 1021, 1025, 1030, 1034, 1038, 1042, 1046, 1050, 1055, 1059, 1064,
+ * 1069, 1074, 1079, 1084, 1089, 1095, 1101, 1106, 1112, 1117, 1122, 1127, 1132,
+ * 1137, 1141, 1146, 1150, 1154, 1158, 1162, 1166, 1170, 1173, 1177, 1181, 1185,
+ * 1189, 1192, 1196, 1199, 1202, 1205, 1208, 1212, 1215, 1218, 1221, 1225, 1228,
+ * 1232, 1236, 1240, 1244, 1248, 1253, 1257, 1262, 1266, 1271, 1276, 1280, 1285,
+ * 1290, 1294, 1298, 1301, 1305, 1309, 1313, 1316, 1320, 1323, 1326, 1330, 1333,
+ * 1337, 1340, 1344, 1347, 1351, 1355, 1359, 1362, 1366, 1370, 1374, 1378, 1381,
+ * 1385, 1389, 1393, 1397};
+ */
