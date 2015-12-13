@@ -1,11 +1,8 @@
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 import javax.swing.SwingUtilities;
-
-import com.google.common.base.Stopwatch;
 
 public class Main {
 
@@ -14,8 +11,6 @@ public class Main {
 		String bluetoothDataString = "";
 		String tempBluetoothString = "";
 		boolean flag = true;
-		// double[][] trackData = {{}};
-		Stopwatch stopwatch = Stopwatch.createUnstarted();
 		int[] raceDataPlan;
 
 		System.out.println("Setting-up the connection");
@@ -24,24 +19,18 @@ public class Main {
 		System.out.println("Learning the track");
 		serialConnection.write("L".getBytes());
 		serialConnection.read();
-		stopwatch.start();
 
 		/* Wait for signal('!') that car stopped sampling the track */
 		while (flag) {
 			tempBluetoothString = new String(serialConnection.read());
-			// System.out.print(tempBluetoothString.replaceAll("\\s+",
-			// "").trim());
 			if (tempBluetoothString.charAt(0) == '!') {
 				flag = false;
 			}
 		}
-		stopwatch.stop();
-		System.out.println("\n Learning time: "
-				+ stopwatch.elapsed(TimeUnit.MILLISECONDS));
 		System.out.println("Receiving the data");
 		flag = true;
 
-		/* Reading sampling data until 15 empty readings */
+		/* Reading sampling data until signal('!') is received */
 		while (flag) {
 			tempBluetoothString = new String(serialConnection.read());
 			System.out.println(tempBluetoothString);
@@ -49,11 +38,6 @@ public class Main {
 			if (tempBluetoothString.contains("!")) {
 				flag = false;
 			}
-			/*
-			 * if (tempBluetoothString.replaceAll("\\s+", "").trim().equals(""))
-			 * { emptyCount++; if (emptyCount > 15) { start = false; } } else {
-			 * emptyCount = 0; }
-			 */
 		}
 
 		/* Splitting the string into single readings */
@@ -194,8 +178,7 @@ public class Main {
 		 * Detect when the car is rotating(gyroscope reading > 100) and then set
 		 * the motor speed of 65, otherwise 85
 		 */
-		boolean isStraight = false;
-		int straightLength = 0;
+		
 		for (int i = 0; i < tacho.length; i++) {
 			if (Math.abs(gyroZ[i]) < 100) {
 				raceData[raceCounter + 1] = 85;
@@ -212,12 +195,13 @@ public class Main {
 		int[] straightEnd = { 0, 0 };
 		int[] curveEnd = { 0, 0 };
 
-		straightLength = 0;
+		int straightLength = 0;
 		int curveLength = 0;
 		int breakPoint = 0;
 
-		isStraight = false;
+		boolean isStraight = false;
 		int[] breakPoints = new int[raceData.length];
+		
 		/* Algorithm for calculating the break points */
 		for (int i = 31; i < raceData.length; i += 2) {
 			if (raceData[i] >= 85 && !isStraight) {
@@ -237,7 +221,7 @@ public class Main {
 				 * count, otherwise ignore.
 				 */
 				if (straightLength > 15) {
-					/* Detect end of the curve */
+					/* Detect the end of the curve */
 					for (int j = i; j < raceData.length; j += 2) {
 						if (raceData[j] >= 85) {
 							curveEnd[0] = raceData[j - 3];

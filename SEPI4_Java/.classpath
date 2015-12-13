@@ -4,7 +4,6 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8"/>
 	<classpathentry kind="lib" path="D:/VIA/RIE/SEPI4-Daniel-Farid-Virgil/SEPI4_Java/jna-4.2.0.jar"/>
 	<classpathentry kind="lib" path="D:/VIA/RIE/SEPI4-Daniel-Farid-Virgil/SEPI4_Java/JSerial-1.0.3.jar"/>
-	<classpathentry kind="lib" path="D:/VIA/RIE/SEPI4-Daniel-Farid-Virgil/SEPI4_Java/guava-18.0.jar"/>
 	<classpathentry kind="lib" path="D:/VIA/RIE/SEPI4-Daniel-Farid-Virgil/SEPI4_Java/jcommon-1.0.23.jar"/>
 	<classpathentry kind="lib" path="D:/VIA/RIE/SEPI4-Daniel-Farid-Virgil/SEPI4_Java/jfreechart-1.0.19.jar"/>
 	<classpathentry kind="output" path="bin"/>
