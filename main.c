@@ -22,14 +22,16 @@
 #include "timers.h"
 
 #define startup_TASK_PRIORITY				( tskIDLE_PRIORITY + 1 )
-#define planned_track_TASK_PRIORITY			( tskIDLE_PRIORITY + 1 )
+#define adjust_speed_TASK_PRIORITY			( tskIDLE_PRIORITY + 1 )
+#define count_tacho_TASK_PRIORITY			( tskIDLE_PRIORITY + 1 )
 #define learn_TASK_PRIORITY					( tskIDLE_PRIORITY + 1 )
-#define goal_line_task_TASK_PRIORITY			( tskIDLE_PRIORITY + 2 )
-#define samplingPoints						335
+#define goal_line_task_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
+#define samplingPoints						400
 
 
 static const uint8_t _BT_RX_QUEUE_LENGTH = 30; 
 static SemaphoreHandle_t  goal_line_semaphore = NULL;
+static SemaphoreHandle_t  speed_adjusting_semaphore = NULL;
 static QueueHandle_t _xBT_received_chars_queue = NULL;
 //static TimerHandle_t xTimer;
 
@@ -40,7 +42,9 @@ uint8_t bt_initialised = 0;
 uint8_t charCount=0;
 char sendValue[5] = {};
 int tick;
+uint8_t finishFlag = 0;
 uint16_t cumulativeTacho;
+uint16_t planCount = 0;
 int sendingDataFlag = 0;
 uint16_t samplingData[samplingPoints][3] = {};
 TaskHandle_t xHandle = NULL;
@@ -55,9 +59,14 @@ void bt_status_call_back(uint8_t status) {
 void vLearnTrack(void *pvParameters) {
 	( void ) pvParameters;
 	uint16_t l;
+	finishFlag = 0;
 	set_motor_speed(65);
 	for (l = 0; l < samplingPoints; l++)
 	{
+		if (finishFlag == 1)
+		{
+			break;
+		}
 		samplingData[l][0] = get_raw_y_accel();
 		samplingData[l][1] = get_raw_z_rotation();
 		samplingData[l][2] = get_tacho_count();
@@ -79,6 +88,10 @@ void vLearnTrack(void *pvParameters) {
 	l=0;
 	for (l = 0; l < samplingPoints; l++)
 	{
+		if (samplingData[l][0] == 0)
+		{
+			break;
+		}
 		raw_y = samplingData[l][0];
 		raw_z = samplingData[l][1];
 		tacho = samplingData[l][2];
@@ -95,36 +108,41 @@ void vLearnTrack(void *pvParameters) {
 
 void vCountTacho(void *pvParameters ) {
 	( void ) pvParameters;
+	get_tacho_count();
 	for (;;)
 	{
+		cumulativeTacho = cumulativeTacho + get_tacho_count();
+		if (cumulativeTacho >= accData[planCount])
+		{
+			xSemaphoreGive(speed_adjusting_semaphore);
+		}
 	}
 }
 
-void vPlannedTrack(void *pvParameters ) {
+void vAdjustSpeed(void *pvParameters ) {
 	( void ) pvParameters;
+	finishFlag = 0;
 	get_tacho_count();
 	set_head_light(1);
-	uint16_t count = 0;
-	cumulativeTacho = get_tacho_count();
-	while (cumulativeTacho < 1230)
+	planCount = 0;
+	while (finishFlag == 0)
 	{
-		if (cumulativeTacho >= accData[count])
+		if (xSemaphoreTake(speed_adjusting_semaphore, portMAX_DELAY))
 		{
-			if (accData[count+1] <= 100)
+			if (accData[planCount+1] <= 100)
 			{
 				set_brake_light(0);
-				set_motor_speed(accData[count+1]);
-				} else if (accData[count+1] > 100) {
-				set_brake(accData[count+1]-100);
+				set_motor_speed(accData[planCount+1]);
+			} else if (accData[planCount+1] > 100) {
+				set_brake(accData[planCount+1]-100);
 				set_brake_light(1);
 				set_motor_speed(0);
-				} else {
+			} else {
 				set_motor_speed(0);
 			}
-			nextVal= accData[count+1];
-			count = count + 2;
+			nextVal= accData[planCount+1];
+			planCount = planCount + 2;
 		}
-		cumulativeTacho = cumulativeTacho + get_tacho_count();
 	}
 	set_brake_light(0);
 	set_head_light(0);
@@ -230,7 +248,8 @@ void bt_com_call_back(uint8_t byte) {
 			
 			case 'R': {
 				set_brake_light(0);
-				xTaskCreate( vPlannedTrack, "PlannedTrack", configMINIMAL_STACK_SIZE, NULL, planned_track_TASK_PRIORITY, NULL );
+				xTaskCreate( vCountTacho, "CountTacho", configMINIMAL_STACK_SIZE, NULL, count_tacho_TASK_PRIORITY, NULL );
+				xTaskCreate( vAdjustSpeed, "AdjustSpeed", configMINIMAL_STACK_SIZE, NULL, adjust_speed_TASK_PRIORITY, NULL );
 				break;
 			}
 			
@@ -273,6 +292,7 @@ static void vGoalLineTask( void *pvParameters ) {
 		if (xSemaphoreTake(goal_line_semaphore, portMAX_DELAY))
 		{
 			set_horn(1);
+			finishFlag = 1;
 			vTaskDelay(50);
 			set_horn(0);
 		}
@@ -284,6 +304,7 @@ static void vstartupTask( void *pvParameters ) {
 	( void ) pvParameters;
 	
 	goal_line_semaphore = xSemaphoreCreateBinary();
+	speed_adjusting_semaphore = xSemaphoreCreateBinary();
 	_xBT_received_chars_queue = xQueueCreate( _BT_RX_QUEUE_LENGTH, ( unsigned portBASE_TYPE ) sizeof( uint8_t ) );
 	
 	if( goal_line_semaphore == NULL ) {

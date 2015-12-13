@@ -128,8 +128,8 @@ public class Main {
 		}
 
 		/* Start racing */
-		//serialConnection.write("R".getBytes());
-		//serialConnection.read();
+		serialConnection.write("R".getBytes());
+		serialConnection.read();
 		System.out.println("START!");
 		serialConnection.write("s".getBytes());
 		serialConnection.read();
@@ -173,7 +173,6 @@ public class Main {
 		int breakPointsCounter = 0;
 		int cumulativeTacho = 0;
 		int[] raceData;
-		int[] breakPoints = new int[350];
 		double[] accY = new double[trackData.length];
 		double[] gyroZ = new double[trackData.length];
 		int[] tacho = new int[trackData.length];
@@ -193,8 +192,10 @@ public class Main {
 
 		/*
 		 * Detect when the car is rotating(gyroscope reading > 100) and then set
-		 * the motor speed of 65
+		 * the motor speed of 65, otherwise 85
 		 */
+		boolean isStraight = false;
+		int straightLength = 0;
 		for (int i = 0; i < tacho.length; i++) {
 			if (Math.abs(gyroZ[i]) < 100) {
 				raceData[raceCounter + 1] = 85;
@@ -211,12 +212,12 @@ public class Main {
 		int[] straightEnd = { 0, 0 };
 		int[] curveEnd = { 0, 0 };
 
-		int straightLength = 0;
+		straightLength = 0;
 		int curveLength = 0;
 		int breakPoint = 0;
 
-		boolean isStraight = false;
-
+		isStraight = false;
+		int[] breakPoints = new int[raceData.length];
 		/* Algorithm for calculating the break points */
 		for (int i = 31; i < raceData.length; i += 2) {
 			if (raceData[i] >= 85 && !isStraight) {
@@ -235,7 +236,7 @@ public class Main {
 				 * Calculate breaking point if straight is longer than 10 tacho
 				 * count, otherwise ignore.
 				 */
-				if (straightLength > 10) {
+				if (straightLength > 15) {
 					/* Detect end of the curve */
 					for (int j = i; j < raceData.length; j += 2) {
 						if (raceData[j] >= 85) {
@@ -277,6 +278,10 @@ public class Main {
 							breakPoints[breakPointsCounter] = j;
 							breakPointsCounter++;
 						}
+					}
+				} else {
+					for (int j = straightStart[1]; j < i; j += 2) {
+						raceData[j] = 65;
 					}
 				}
 
