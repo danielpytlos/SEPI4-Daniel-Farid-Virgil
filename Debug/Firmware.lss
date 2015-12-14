@@ -13,11 +13,11 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY
   4 .debug_aranges 000005b0  00000000  00000000  00003ee4  2**0
                   CONTENTS, READONLY, DEBUGGING
-  5 .debug_info   00007b30  00000000  00000000  00004494  2**0
+  5 .debug_info   00007b31  00000000  00000000  00004494  2**0
                   CONTENTS, READONLY, DEBUGGING
-  6 .debug_abbrev 00001a21  00000000  00000000  0000bfc4  2**0
+  6 .debug_abbrev 00001a21  00000000  00000000  0000bfc5  2**0
                   CONTENTS, READONLY, DEBUGGING
-  7 .debug_line   0000416a  00000000  00000000  0000d9e5  2**0
+  7 .debug_line   0000416a  00000000  00000000  0000d9e6  2**0
                   CONTENTS, READONLY, DEBUGGING
   8 .debug_frame  00001384  00000000  00000000  00011b50  2**2
                   CONTENTS, READONLY, DEBUGGING
@@ -5933,10 +5933,10 @@ void vAdjustSpeed(void *pvParameters ) {
 	while (finishFlag == 0)
     288c:	46 c0       	rjmp	.+140    	; 0x291a <vAdjustSpeed+0xa4>
 	{
-		if (xSemaphoreTake(speed_adjusting_semaphore, portMAX_DELAY))
+		if (xSemaphoreTake(speed_adjusting_semaphore, 1000))
     288e:	20 e0       	ldi	r18, 0x00	; 0
-    2890:	4f ef       	ldi	r20, 0xFF	; 255
-    2892:	5f ef       	ldi	r21, 0xFF	; 255
+    2890:	48 ee       	ldi	r20, 0xE8	; 232
+    2892:	53 e0       	ldi	r21, 0x03	; 3
     2894:	60 e0       	ldi	r22, 0x00	; 0
     2896:	70 e0       	ldi	r23, 0x00	; 0
     2898:	80 91 c7 1d 	lds	r24, 0x1DC7

@@ -150,8 +150,8 @@ public class Main {
 	}
 
 	public static int[] calculateRacePlan(double[][] trackData) {
-		final double NORMAL_CURVE_BREAKING_POINT_CONSTANT = 0.8;
-		final double SHARP_CURVE_BREAKING_POINT_CONSTANT = 0.65;
+		final double NORMAL_CURVE_BREAKING_POINT_CONSTANT = 0.75;
+		final double SHARP_CURVE_BREAKING_POINT_CONSTANT = 0.75;
 
 		int raceCounter = 0;
 		int breakPointsCounter = 0;
@@ -184,7 +184,7 @@ public class Main {
 				raceData[raceCounter + 1] = 85;
 				raceData[raceCounter] = tacho[i];
 			} else {
-				raceData[raceCounter + 1] = 65;
+				raceData[raceCounter + 1] = 70;
 				raceData[raceCounter] = tacho[i];
 			}
 			raceCounter = raceCounter + 2;
@@ -257,7 +257,7 @@ public class Main {
 					 * of the curve and add them to array.
 					 */
 					for (int j = straightStart[1]; j <= straightEnd[1]
-							+ ((curveEnd[1] - straightEnd[1]) / 2); j += 2) {
+							+ ((curveEnd[1] - straightEnd[1]) / 2.5); j += 2) {
 						if (raceData[j - 1] > breakPoint) {
 							breakPoints[breakPointsCounter] = j;
 							breakPointsCounter++;

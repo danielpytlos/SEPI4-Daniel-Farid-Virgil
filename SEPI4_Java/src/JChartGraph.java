@@ -89,7 +89,7 @@ public class JChartGraph extends JFrame {
 		renderer.setSeriesPaint(0, Color.CYAN);
 		
 		for (int i = 0; i < raceData.length-1; i+=2) {
-			if(raceData[i+1] == 65)
+			if(raceData[i+1] == 70)
 			{
 				((XYPlot) chart.getPlot()).addAnnotation(new XYShapeAnnotation(new Rectangle2D.Double(raceData[i]-2, 50, 4, 1),new BasicStroke(3.0f),Color.YELLOW));
 			}
@@ -125,8 +125,8 @@ public class JChartGraph extends JFrame {
 		Shape shape = new Rectangle(30, 3);
 		chartLegend.add(new LegendItem("GyroZ", null, null, null, shape, Color.CYAN));
 		chartLegend.add(new LegendItem("Break", null, null, null, shape, Color.RED));
-		chartLegend.add(new LegendItem("Motor 50%", null, null, null, shape, Color.YELLOW));
-		chartLegend.add(new LegendItem("Motor 100%", null, null, null, shape, Color.GREEN));
+		chartLegend.add(new LegendItem("Motor 70%", null, null, null, shape, Color.YELLOW));
+		chartLegend.add(new LegendItem("Motor 85%", null, null, null, shape, Color.GREEN));
 		plot.setFixedLegendItems(chartLegend);
 	}
 }

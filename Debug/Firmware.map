@@ -1416,7 +1416,7 @@ END GROUP
 .debug_pubnames
  *(.debug_pubnames)
 
-.debug_info     0x00000000     0x7b30
+.debug_info     0x00000000     0x7b31
  *(.debug_info .gnu.linkonce.wi.*)
  .debug_info    0x00000000     0x14ef board_driver/board.o
  .debug_info    0x000014ef      0x20c buffer/buffer.o
@@ -1427,9 +1427,9 @@ END GROUP
  .debug_info    0x000021e8     0x1434 FreeRTOS/Source/queue.o
  .debug_info    0x0000361c     0x19ee FreeRTOS/Source/tasks.o
  .debug_info    0x0000500a      0xfe1 FreeRTOS/Source/timers.o
- .debug_info    0x00005feb      0xfbb main.o
- .debug_info    0x00006fa6      0x58c serial/serial.o
- .debug_info    0x00007532      0x5fe spi/spi.o
+ .debug_info    0x00005feb      0xfbc main.o
+ .debug_info    0x00006fa7      0x58c serial/serial.o
+ .debug_info    0x00007533      0x5fe spi/spi.o
 
 .debug_abbrev   0x00000000     0x1a21
  *(.debug_abbrev)
